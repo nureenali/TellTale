@@ -1,8 +1,9 @@
+import './server/env.ts';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import express from 'express';
 import path from 'path';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { apiRouter } from './server/api.ts';
 
 function apiMiddlewarePlugin(): Plugin {
@@ -19,12 +20,20 @@ function apiMiddlewarePlugin(): Plugin {
   };
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  // Load environment variables for the current mode (.env, .env.local, .env.[mode], etc.)
+  const env = loadEnv(mode, process.cwd(), '');
+  for (const [key, value] of Object.entries(env)) {
+    if (process.env[key] === undefined || process.env[key] === '') {
+      process.env[key] = value;
+    }
+  }
+
   return {
     plugins: [react(), tailwindcss(), apiMiddlewarePlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(process.cwd(), '.'),
       },
     },
     server: {

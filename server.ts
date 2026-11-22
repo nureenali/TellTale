@@ -1,9 +1,7 @@
+import './server/env.ts';
 import express from 'express';
 import path from 'path';
-import dotenv from 'dotenv';
 import { apiRouter } from './server/api.ts';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

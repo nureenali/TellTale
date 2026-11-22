@@ -1,3 +1,6 @@
+import { loadAppEnv, projectRoot } from './env.ts';
+import fs from 'fs';
+import path from 'path';
 import { GoogleGenAI, Type } from '@google/genai';
 import type { BrainstormRequest, BrainstormResponse, BrainstormSuggestion } from './types.ts';
 
@@ -12,20 +15,78 @@ export function getGeminiModel(): string {
   return DEFAULT_MODEL;
 }
 
+export function getGeminiApiKey(): string | undefined {
+  // 1. Check existing environment variables
+  let rawKey = (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.API_KEY ||
+    ''
+  ).trim();
+
+  // 2. If missing or empty, dynamically reload environment files
+  if (!rawKey) {
+    loadAppEnv();
+    rawKey = (
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.API_KEY ||
+      ''
+    ).trim();
+  }
+
+  // 3. Fail-safe: Direct file read of .env.local if still missing
+  if (!rawKey) {
+    const candidateFiles = [
+      path.resolve(projectRoot, '.env.local'),
+      path.resolve(process.cwd(), '.env.local'),
+    ];
+    for (const filePath of candidateFiles) {
+      if (fs.existsSync(filePath)) {
+        try {
+          const content = fs.readFileSync(filePath, 'utf-8');
+          const match = content.match(/^\s*GEMINI_API_KEY\s*=\s*["']?([^"'\r\n#]+)/m);
+          if (match && match[1]) {
+            rawKey = match[1].trim();
+            process.env.GEMINI_API_KEY = rawKey;
+            break;
+          }
+        } catch {}
+      }
+    }
+  }
+
+  // Strip enclosing quotes if present (e.g. from .env files like GEMINI_API_KEY="AIzaSy...")
+  const cleanKey = rawKey.replace(/^["']|["']$/g, '').trim();
+
+  const placeholderValues = new Set([
+    '',
+    'MY_GEMINI_API_KEY',
+    'your_gemini_api_key_here',
+    'YOUR_GEMINI_API_KEY',
+    'your_api_key_here',
+    'your-api-key-here',
+    'PLACEHOLDER',
+  ]);
+
+  if (!cleanKey || placeholderValues.has(cleanKey)) {
+    return undefined;
+  }
+  return cleanKey;
+}
+
 export function isGeminiConfigured(): boolean {
-  const currentKey = process.env.GEMINI_API_KEY;
-  return Boolean(currentKey && currentKey !== 'MY_GEMINI_API_KEY');
+  return Boolean(getGeminiApiKey());
 }
 
 export async function generateBrainstormSuggestions(
   request: BrainstormRequest
 ): Promise<BrainstormResponse> {
-  const currentKey = process.env.GEMINI_API_KEY;
-  if (!currentKey || currentKey === 'MY_GEMINI_API_KEY') {
-    throw new Error('CONFIG_ERROR: GEMINI_API_KEY is not configured. Please set a valid Gemini API key in the Secrets panel.');
+  const currentKey = getGeminiApiKey();
+  if (!currentKey) {
+    throw new Error('CONFIG_ERROR: GEMINI_API_KEY is not configured. Please set a valid Gemini API key in your .env.local file.');
   }
 
-  const modelName = getGeminiModel();
   const ai = new GoogleGenAI({ apiKey: currentKey });
 
   const storyContext = (request.story_context || '').trim();
@@ -75,7 +136,7 @@ Generate exactly 3 suggestions adhering strictly to the JSON schema.`;
     try {
       usedModel = candidateModel;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('TIMEOUT: Model request timed out')), 10000);
+        setTimeout(() => reject(new Error('TIMEOUT: Model request timed out')), 15000);
       });
 
       const response = await Promise.race([
@@ -124,12 +185,17 @@ Generate exactly 3 suggestions adhering strictly to the JSON schema.`;
     } catch (err: any) {
       lastError = err;
       const errStr = String(err?.message || err || '');
-      const isTransient =
+      const shouldTryNext =
         errStr.includes('503') ||
+        errStr.includes('404') ||
+        errStr.includes('429') ||
+        errStr.includes('RESOURCE_EXHAUSTED') ||
         errStr.includes('UNAVAILABLE') ||
         errStr.includes('high demand') ||
+        errStr.includes('not found') ||
+        errStr.includes('no longer') ||
         errStr.includes('TIMEOUT');
-      if (!isTransient) {
+      if (!shouldTryNext) {
         throw new Error(`UPSTREAM_ERROR: Gemini API call failed: ${err?.message || 'Unknown error'}`);
       }
     }

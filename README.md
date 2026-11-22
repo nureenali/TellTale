@@ -74,9 +74,9 @@ It unites the distraction-free focus of a dedicated manuscript editor, the struc
    ```
 3. Copy environment configuration:
    ```bash
-   cp .env.example .env
+   cp .env.example .env.local
    ```
-4. Set your `GEMINI_API_KEY` in `.env` (or through the AI Studio Secrets panel).
+4. Set your `GEMINI_API_KEY` in `.env.local`.
 5. Start the development server:
    ```bash
    npm run dev
@@ -89,7 +89,7 @@ It unites the distraction-free focus of a dedicated manuscript editor, the struc
 
 ```powershell
 # In PowerShell:
-Copy-Item .env.example .env
+Copy-Item .env.example .env.local
 npm install --legacy-peer-deps
 npm run dev
 ```
@@ -163,5 +163,5 @@ TellTale stores all workspace data in a single human-readable JSON file at `./da
 
 ## 9. Troubleshooting & Known Limitations
 
-- **Gemini API Key Missing**: If `GEMINI_API_KEY` is not provided, the rest of TellTale (writing canvas, autosave, notes, projects, backup export) remains completely functional. The Brainstorm tab displays an actionable banner guiding you to configure your key in the **Secrets** panel.
+- **Gemini API Key Missing**: If `GEMINI_API_KEY` is not provided, the rest of TellTale (writing canvas, autosave, notes, projects, backup export) remains completely functional. The Brainstorm tab displays an actionable banner guiding you to configure your key in `.env.local`.
 - **Concurrent Single-Instance Design**: The MVP uses a single-file JSON store (`./data/telltale.json`), which is ideal for single-user local development and single-instance container deployments with a persistent writable disk volume. For multi-user horizontal scaling, transition to a hosted database like PostgreSQL.
