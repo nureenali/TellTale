@@ -148,20 +148,20 @@ npm run lint
 
 ---
 
-## 8. Database Architecture
+## 8. JSON Data Storage Architecture
 
-The SQLite database schema resides at `./data/telltale.db` (configured via `DATABASE_PATH`). Foreign keys are enforced via `PRAGMA foreign_keys = ON;`.
+TellTale stores all workspace data in a single human-readable JSON file at `./data/telltale.json` (configured via `JSON_STORAGE_PATH`), with no separate database server required. Writes are atomic (temp file + rename) and the frontend also maintains an offline browser JSON fallback.
 
-### Tables
-- **`projects`**: Top-level fiction manuscripts with word count targets and timestamps.
-- **`documents`**: Chapters and scenes referencing `projects(id)` with `ON DELETE CASCADE`. Tracks `version` for optimistic lock verification during autosaves.
-- **`story_contexts`**: 1-to-1 narrative lore attached to `projects(id)`.
-- **`notes`**: Story lore, research tidbits, and character profiles referencing `projects(id)` (nullable for general notes).
-- **`ideas`**: Plot suggestions saved from Gemini brainstorm sessions or author notes.
+### Stored Collections
+- **`projects`**: Top-level fiction manuscripts with title, genre, description, word count targets, and timestamps.
+- **`documents`**: Individual chapters and scenes belonging to a project, including prose content, ordering, and optimistic `version` counter for autosave.
+- **`story_contexts`**: Synopsis, character profiles, tone, and active plot question per project (sent to Gemini during brainstorming).
+- **`notes`**: Story lore, worldbuilding rules, research snippets, and craft notes (project-linked or general).
+- **`ideas`**: Plot developments saved from Gemini brainstorming sessions or author sparks.
 
 ---
 
 ## 9. Troubleshooting & Known Limitations
 
-- **Gemini API Key Missing**: If `GEMINI_API_KEY` is not provided, the rest of TellTale (writing canvas, autosave, notes, projects, backup export) remains completely functional. The Brainstorm tab displays an actionable banner guiding you to configure your key.
-- **Concurrent Single-Instance Design**: The MVP uses SQLite, which is ideal for single-user local development and container deployments with a persistent writable disk volume. If deploying for multi-user horizontal scaling across multiple instances, transition to PostgreSQL as outlined in the architecture specifications.
+- **Gemini API Key Missing**: If `GEMINI_API_KEY` is not provided, the rest of TellTale (writing canvas, autosave, notes, projects, backup export) remains completely functional. The Brainstorm tab displays an actionable banner guiding you to configure your key in the **Secrets** panel.
+- **Concurrent Single-Instance Design**: The MVP uses a single-file JSON store (`./data/telltale.json`), which is ideal for single-user local development and single-instance container deployments with a persistent writable disk volume. For multi-user horizontal scaling, transition to a hosted database like PostgreSQL.

@@ -1,6 +1,6 @@
 import { Router, json } from 'express';
-import { dbService, db } from './db.ts';
-import { generateBrainstormSuggestions, isGeminiConfigured } from './gemini.ts';
+import { dbService } from './db.ts';
+import { generateBrainstormSuggestions, getGeminiModel, isGeminiConfigured } from './gemini.ts';
 
 export const apiRouter = Router();
 
@@ -9,21 +9,21 @@ apiRouter.use(json({ limit: '10mb' }));
 // Health Check
 apiRouter.get('/health', (req, res) => {
   try {
-    const row = db.prepare('SELECT 1 as alive').get() as { alive: number } | undefined;
-    const dbAlive = row?.alive === 1;
+    const health = dbService.checkHealth();
     res.json({
-      status: 'ok',
+      status: health.ok ? 'ok' : 'error',
       service: 'TellTale API',
-      database: dbAlive ? 'connected' : 'unhealthy',
+      database: health.ok ? 'connected' : 'unhealthy',
+      storage_type: 'json',
       gemini_configured: isGeminiConfigured(),
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      model: getGeminiModel(),
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
     res.status(500).json({
       status: 'error',
       database: 'disconnected',
-      error: error.message || 'Database error'
+      error: error.message || 'Storage error'
     });
   }
 });

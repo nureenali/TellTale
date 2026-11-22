@@ -200,25 +200,25 @@ export function SettingsPage() {
         </div>
       </section>
 
-      {/* 3. System & Database Health */}
+      {/* 3. System & JSON Storage Health */}
       <section className="bg-[#FFFFFF] dark:bg-[#1E201B] border border-[#E2E0D8] dark:border-[#34382F] rounded-xl p-6 space-y-4">
         <div>
           <h2 className="text-sm font-semibold tracking-tight text-[#252722] dark:text-[#ECEAE4] flex items-center gap-2">
             <Database className="w-4 h-4 text-[#287A55]" />
-            <span>Zero-Config Database & Engine Status</span>
+            <span>JSON Data Storage & Engine Status</span>
           </h2>
           <p className="text-xs text-[#696D65] dark:text-[#9FA49A] mt-0.5">
-            You do not need to install or configure any database. TellTale works automatically out of the box.
+            No external database required. All your writing data is stored in a single, portable JSON file.
           </p>
         </div>
 
         {/* Reassuring zero-config notice */}
         <div className="p-3.5 bg-[#287A55]/10 border border-[#287A55]/20 rounded-lg flex items-start gap-3">
           <CheckCircle2 className="w-4 h-4 text-[#287A55] shrink-0 mt-0.5" />
-          <div className="text-xs text-[#252722] dark:text-[#ECEAE4] space-y-0.5">
-            <p className="font-medium text-[#287A55]">No Database Setup or Connection Needed</p>
+          <div className="text-xs text-[#252722] dark:text-[#ECEAE4] space-y-1">
+            <p className="font-medium text-[#287A55]">Stored in Plain JSON (Zero Database Setup)</p>
             <p className="text-[#696D65] dark:text-[#9FA49A] leading-relaxed">
-              TellTale automatically manages its own embedded SQLite storage in the background. If running offline or in standalone browser mode, it seamlessly preserves all your chapters, story lore, and plot ideas directly in your browser.
+              TellTale saves everything in <code className="font-mono text-[11px]">data/telltale.json</code> (and falls back to browser JSON storage when offline): your <strong>projects</strong>, <strong>chapters/documents</strong>, <strong>story contexts</strong> (synopsis, characters, tone), <strong>notes</strong>, and <strong>saved plot ideas</strong>.
             </p>
           </div>
         </div>
@@ -228,7 +228,7 @@ export function SettingsPage() {
             <div className="text-[11px] text-[#696D65] dark:text-[#9FA49A]">Storage Engine</div>
             <div className="mt-1 flex items-center gap-1.5 font-medium text-xs text-[#287A55]">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">{health?.database || 'Auto-Managed (Zero Setup)'}</span>
+              <span className="truncate">{health?.database || 'JSON File Storage'}</span>
             </div>
           </div>
 
@@ -295,7 +295,7 @@ export function SettingsPage() {
           TellTale — Story Workspace for Novelists & Storytellers
         </p>
         <p>
-          Version 1.0.0 · Full-stack architecture with React, TypeScript, Express, SQLite persistence, and Gemini 3.8 Flash brainstorming.
+          Version 1.0.0 · Full-stack architecture with React, TypeScript, Express, JSON file persistence, and Gemini 3.8 Flash brainstorming.
         </p>
       </section>
     </div>

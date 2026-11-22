@@ -40,14 +40,14 @@ export const api = {
       isBackendAvailable = true;
       return {
         ...data,
-        database: 'Connected (Auto-Managed Embedded SQLite)',
+        database: 'JSON File (./data/telltale.json)',
       };
     } catch {
       isBackendAvailable = false;
       return {
         status: 'ok',
         service: 'TellTale Client Workspace',
-        database: 'Connected (In-Browser Storage · Zero Setup Required)',
+        database: 'Browser JSON Storage (Offline)',
         gemini_configured: false,
         model: 'gemini-3.8-flash',
         timestamp: new Date().toISOString(),

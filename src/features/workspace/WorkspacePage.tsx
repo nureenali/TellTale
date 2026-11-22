@@ -218,12 +218,20 @@ export function WorkspacePage() {
       setBrainstormError(null);
 
       // Context compilation
-      const combinedContext = [
+      const compiledFields = [
         synopsis ? `Synopsis: ${synopsis}` : '',
         characters ? `Characters: ${characters}` : '',
         tone ? `Tone: ${tone}` : '',
         activeQuestion ? `Active Plot Question: ${activeQuestion}` : '',
-      ].filter(Boolean).join('\n\n');
+      ].filter(Boolean);
+
+      if (compiledFields.length === 0 && !docContent.trim()) {
+        compiledFields.push(`Project Title: ${activeProject.title}`);
+        if (activeProject.genre) compiledFields.push(`Genre: ${activeProject.genre}`);
+        if (activeProject.description) compiledFields.push(`Premise: ${activeProject.description}`);
+      }
+
+      const combinedContext = compiledFields.join('\n\n');
 
       const response = await api.brainstorm({
         project_id: activeProject.id,

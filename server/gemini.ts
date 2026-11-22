@@ -1,12 +1,15 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { BrainstormRequest, BrainstormResponse, BrainstormSuggestion } from './types.ts';
 
-const apiKey = process.env.GEMINI_API_KEY;
-const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const DEFAULT_MODEL = 'gemini-4-hydrogen';
 
-let ai: GoogleGenAI | null = null;
-if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
-  ai = new GoogleGenAI({ apiKey });
+export function getGeminiModel(): string {
+  const envModel = (process.env.GEMINI_MODEL || '').trim();
+  // Guard against accidentally placing an API key or malformed string into GEMINI_MODEL
+  if (/^(models\/)?gemini-[a-z0-9.-]+$/i.test(envModel)) {
+    return envModel;
+  }
+  return DEFAULT_MODEL;
 }
 
 export function isGeminiConfigured(): boolean {
@@ -19,13 +22,11 @@ export async function generateBrainstormSuggestions(
 ): Promise<BrainstormResponse> {
   const currentKey = process.env.GEMINI_API_KEY;
   if (!currentKey || currentKey === 'MY_GEMINI_API_KEY') {
-    throw new Error('CONFIG_ERROR: GEMINI_API_KEY is not configured. Please set a valid Gemini API key in the environment or Secrets panel.');
+    throw new Error('CONFIG_ERROR: GEMINI_API_KEY is not configured. Please set a valid Gemini API key in the Secrets panel.');
   }
 
-  // Refresh instance if key changed or newly provided
-  if (!ai) {
-    ai = new GoogleGenAI({ apiKey: currentKey });
-  }
+  const modelName = getGeminiModel();
+  const ai = new GoogleGenAI({ apiKey: currentKey });
 
   const storyContext = (request.story_context || '').trim();
   const passage = (request.passage || '').trim();
@@ -62,47 +63,83 @@ ${focus}
 
 Generate exactly 3 suggestions adhering strictly to the JSON schema.`;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        systemInstruction: 'You are TellTale, an elite literary fiction advisor. Always output strictly valid JSON conforming to the requested schema. Provide thoughtful, non-cliché story developments.',
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            suggestions: {
-              type: Type.ARRAY,
-              description: 'Exactly 3 distinct creative plot development suggestions',
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: {
-                    type: Type.STRING,
-                    description: 'A concise, evocative title for the plot development (3-7 words)'
-                  },
-                  content: {
-                    type: Type.STRING,
-                    description: 'Detailed plot development description (2-4 rich narrative sentences)'
-                  },
-                  rationale: {
-                    type: Type.STRING,
-                    description: 'Brief explanation of how this ties to the established context or character dilemma'
-                  }
-                },
-                required: ['title', 'content']
-              }
-            }
-          },
-          required: ['suggestions']
-        },
-        temperature: 0.85
-      }
-    });
+  const primaryModel = getGeminiModel();
+  const fallbackModels = ['gemini-4-hydrogen', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+  const modelsToTry = [primaryModel, ...fallbackModels.filter(m => m !== primaryModel)];
 
-    const rawText = response.text;
+  let lastError: any = null;
+  let usedModel = primaryModel;
+  let rawText: string | undefined;
+
+  for (const candidateModel of modelsToTry) {
+    try {
+      usedModel = candidateModel;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('TIMEOUT: Model request timed out')), 10000);
+      });
+
+      const response = await Promise.race([
+        ai.models.generateContent({
+          model: candidateModel,
+          contents: prompt,
+          config: {
+            systemInstruction: 'You are TellTale, an elite literary fiction advisor. Always output strictly valid JSON conforming to the requested schema. Provide thoughtful, non-cliché story developments.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                suggestions: {
+                  type: Type.ARRAY,
+                  description: 'Exactly 3 distinct creative plot development suggestions',
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: {
+                        type: Type.STRING,
+                        description: 'A concise, evocative title for the plot development (3-7 words)'
+                      },
+                      content: {
+                        type: Type.STRING,
+                        description: 'Detailed plot development description (2-4 rich narrative sentences)'
+                      },
+                      rationale: {
+                        type: Type.STRING,
+                        description: 'Brief explanation of how this ties to the established context or character dilemma'
+                      }
+                    },
+                    required: ['title', 'content']
+                  }
+                }
+              },
+              required: ['suggestions']
+            },
+            temperature: 0.85
+          }
+        }),
+        timeoutPromise,
+      ]);
+
+      rawText = response.text;
+      if (rawText) break;
+    } catch (err: any) {
+      lastError = err;
+      const errStr = String(err?.message || err || '');
+      const isTransient =
+        errStr.includes('503') ||
+        errStr.includes('UNAVAILABLE') ||
+        errStr.includes('high demand') ||
+        errStr.includes('TIMEOUT');
+      if (!isTransient) {
+        throw new Error(`UPSTREAM_ERROR: Gemini API call failed: ${err?.message || 'Unknown error'}`);
+      }
+    }
+  }
+
+  try {
     if (!rawText) {
+      if (lastError) {
+        throw new Error(`UPSTREAM_ERROR: Gemini API call failed: ${lastError.message || 'Service temporarily unavailable'}`);
+      }
       throw new Error('UPSTREAM_ERROR: Gemini returned an empty response. Please retry.');
     }
 
@@ -129,13 +166,12 @@ Generate exactly 3 suggestions adhering strictly to the JSON schema.`;
 
     return {
       suggestions,
-      model: modelName
+      model: usedModel
     };
   } catch (error: any) {
     if (error.message?.startsWith('CONFIG_ERROR:') || error.message?.startsWith('VALIDATION_ERROR:') || error.message?.startsWith('UPSTREAM_ERROR:')) {
       throw error;
     }
-    // Upstream API error
     throw new Error(`UPSTREAM_ERROR: Gemini API call failed: ${error.message || 'Unknown error'}`);
   }
 }
